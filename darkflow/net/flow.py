@@ -74,6 +74,7 @@ def return_predict(self, im):
     h, w, _ = im.shape
     im = self.framework.resize_input(im)
     this_inp = np.expand_dims(im, 0)
+    print(this_inp.shape)
     feed_dict = {self.inp : this_inp}
 
     out = self.sess.run(self.out, feed_dict)[0]
@@ -127,6 +128,7 @@ def predict(self):
 
         # Feed to the net
         feed_dict = {self.inp : np.concatenate(inp_feed, 0)}    
+        print(self.inp, feed_dict[self.inp].shape)
         self.say('Forwarding {} inputs ...'.format(len(inp_feed)))
         start = time.time()
         out = self.sess.run(self.out, feed_dict)

@@ -33,7 +33,7 @@ class TFNet(object):
 	build_train_op = help.build_train_op
 	load_from_ckpt = help.load_from_ckpt
 
-	def __init__(self, FLAGS, darknet = None):
+	def __init__(self, FLAGS, darknet = None, session=None):
 		self.ntrain = 0
 
 		if isinstance(FLAGS, dict):
@@ -46,12 +46,12 @@ class TFNet(object):
 		self.FLAGS = FLAGS
 		if self.FLAGS.pbLoad and self.FLAGS.metaLoad:
 			self.say('\nLoading from .pb and .meta')
-			self.graph = tf.Graph()
+			self.graph = tf.Graph() if session is None else session.graph
 			device_name = FLAGS.gpuName \
 				if FLAGS.gpu > 0.0 else None
 			with tf.device(device_name):
 				with self.graph.as_default() as g:
-					self.build_from_pb()
+					self.build_from_pb(session)
 			return
 
 		if darknet is None:	
@@ -67,17 +67,17 @@ class TFNet(object):
 
 		self.say('\nBuilding net ...')
 		start = time.time()
-		self.graph = tf.Graph()
+		self.graph = tf.Graph() if session is None else session.graph
 		device_name = FLAGS.gpuName \
 			if FLAGS.gpu > 0.0 else None
 		with tf.device(device_name):
 			with self.graph.as_default() as g:
 				self.build_forward()
-				self.setup_meta_ops()
+				self.setup_meta_ops(session)
 		self.say('Finished in {}s\n'.format(
 			time.time() - start))
 	
-	def build_from_pb(self):
+	def build_from_pb(self, session):
 		with tf.gfile.FastGFile(self.FLAGS.pbLoad, "rb") as f:
 			graph_def = tf.GraphDef()
 			graph_def.ParseFromString(f.read())
@@ -95,7 +95,7 @@ class TFNet(object):
 		self.feed = dict() # other placeholders
 		self.out = tf.get_default_graph().get_tensor_by_name('output:0')
 		
-		self.setup_meta_ops()
+		self.setup_meta_ops(session)
 	
 	def build_forward(self):
 		verbalise = self.FLAGS.verbalise
@@ -120,7 +120,7 @@ class TFNet(object):
 		self.top = state
 		self.out = tf.identity(state.out, name='output')
 
-	def setup_meta_ops(self):
+	def setup_meta_ops(self, session):
 		cfg = dict({
 			'allow_soft_placement': False,
 			'log_device_placement': False
@@ -142,8 +142,13 @@ class TFNet(object):
 			self.summary_op = tf.summary.merge_all()
 			self.writer = tf.summary.FileWriter(self.FLAGS.summary + 'train')
 		
-		self.sess = tf.Session(config = tf.ConfigProto(**cfg))
-		self.sess.run(tf.global_variables_initializer())
+		if session is None: #session hack
+			self.sess = tf.Session(config = tf.ConfigProto(**cfg)) 
+		else: 
+			self.sess = session
+
+		vars_to_init = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope=tf.get_default_graph().get_name_scope())
+		self.sess.run(tf.variables_initializer(vars_to_init))
 
 		if not self.ntrain: return
 		self.saver = tf.train.Saver(tf.global_variables(), 

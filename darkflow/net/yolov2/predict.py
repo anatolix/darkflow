@@ -20,8 +20,8 @@ def _softmax(x):
 def findboxes(self, net_out):
 	# meta
 	meta = self.meta
-	boxes = list()
-	boxes=box_constructor(meta,net_out)
+	#boxes = list()
+	boxes = box_constructor(meta,net_out)
 	return boxes
 
 def postprocess(self, net_out, im, save = True):
